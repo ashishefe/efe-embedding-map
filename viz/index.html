@@ -705,6 +705,35 @@ html, body {
 .journey-footer button.primary:hover {
   background: var(--accent-hover);
 }
+.journey-footer button.playing {
+  background: #e05555;
+  color: white;
+  border-color: #e05555;
+  animation: journey-pulse 1.5s ease-in-out infinite;
+}
+.journey-footer button.playing:hover {
+  background: #c84444;
+}
+@keyframes journey-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(224, 85, 85, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(224, 85, 85, 0); }
+}
+
+/* Journey progress bar */
+.journey-progress {
+  height: 3px;
+  background: var(--border);
+  margin: 0 16px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.journey-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
 
 /* Journey suggestions (shown when journey mode first toggled on) */
 .journey-suggestions {
@@ -827,9 +856,13 @@ html, body {
   </div>
   <div class="journey-cards" id="journey-cards"></div>
   <div class="journey-suggestions" id="journey-suggestions"></div>
+  <div class="journey-progress" id="journey-progress" style="display:none;">
+    <div class="journey-progress-bar" id="journey-progress-bar"></div>
+  </div>
   <div class="journey-footer" id="journey-footer" style="display:none;">
-    <button id="journey-prev-btn">← Previous</button>
-    <button id="journey-next-btn" class="primary">Next →</button>
+    <button id="journey-prev-btn">← Prev</button>
+    <button id="journey-play-btn" class="primary">▶ Play</button>
+    <button id="journey-next-btn">Next →</button>
   </div>
 </div>
 
@@ -1564,8 +1597,15 @@ async function loadData() {
   const journeyFooter = document.getElementById("journey-footer");
   const journeyPrevBtn = document.getElementById("journey-prev-btn");
   const journeyNextBtn = document.getElementById("journey-next-btn");
+  const journeyPlayBtn = document.getElementById("journey-play-btn");
   const journeyCloseBtn = document.getElementById("journey-close-btn");
+  const journeyProgressEl = document.getElementById("journey-progress");
+  const journeyProgressBar = document.getElementById("journey-progress-bar");
   const timeControls = document.getElementById("time-controls");
+
+  // Journey animation state
+  let journeyAnimTimer = null;
+  const JOURNEY_PAUSE_MS = 4000; // 4 seconds per post — enough to read the card
 
   // Post lookup map
   const postById = new Map(posts.map(p => [p.id, p]));
@@ -1645,6 +1685,13 @@ async function loadData() {
     journeyPanelSubtitle.textContent = `${postIds.length} posts`;
     journeySuggestions.style.display = "none";
     journeyFooter.style.display = "flex";
+    journeyProgressEl.style.display = "block";
+    journeyProgressBar.style.width = "0%";
+
+    // Reset play button state
+    journeyPlayBtn.textContent = "▶ Play";
+    journeyPlayBtn.classList.remove("playing");
+    journeyPlayBtn.classList.add("primary");
 
     // Build cards
     buildJourneyCards();
@@ -1698,6 +1745,21 @@ async function loadData() {
     const activeCard = journeyCardsEl.querySelector(".active-card");
     if (activeCard) activeCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
+    // Update progress bar
+    updateJourneyProgress();
+
+    // Update subtitle with position
+    journeyPanelSubtitle.textContent = `${idx + 1} of ${state.activeJourney.length} posts`;
+
+    // Pulse the current post
+    state.pulsePost = p;
+    state.pulseStart = performance.now();
+
+    // Show tooltip for current post
+    const [screenX, screenY] = dataToScreen(p.x, p.y);
+    showTooltip(p, Math.min(screenX + 16, width - 340), Math.max(screenY - 20, 60));
+    state.hoveredPost = p;
+
     // Pan map to center on this post
     const [sx, sy] = dataToScreen(p.x, p.y);
     const dx = width / 2 - sx;
@@ -1706,7 +1768,59 @@ async function loadData() {
     d3.select(canvas).transition().duration(600).call(zoom.transform, newTransform);
   }
 
+  function updateJourneyProgress() {
+    if (!state.activeJourney || state.activeJourney.length <= 1) return;
+    const pct = (state.journeyIndex / (state.activeJourney.length - 1)) * 100;
+    journeyProgressBar.style.width = pct + "%";
+  }
+
+  // === JOURNEY ANIMATION ===
+  function startJourneyPlayback() {
+    if (!state.activeJourney) return;
+    state.journeyPlaying = true;
+    journeyPlayBtn.textContent = "⏸ Pause";
+    journeyPlayBtn.classList.remove("primary");
+    journeyPlayBtn.classList.add("playing");
+
+    // If at the end, restart
+    if (state.journeyIndex >= state.activeJourney.length - 1) {
+      centerOnJourneyPost(0);
+      render();
+    }
+
+    scheduleNextJourneyStep();
+  }
+
+  function stopJourneyPlayback() {
+    state.journeyPlaying = false;
+    journeyPlayBtn.textContent = "▶ Play";
+    journeyPlayBtn.classList.remove("playing");
+    journeyPlayBtn.classList.add("primary");
+    if (journeyAnimTimer) {
+      clearTimeout(journeyAnimTimer);
+      journeyAnimTimer = null;
+    }
+  }
+
+  function scheduleNextJourneyStep() {
+    if (!state.journeyPlaying || !state.activeJourney) return;
+
+    journeyAnimTimer = setTimeout(() => {
+      if (!state.journeyPlaying || !state.activeJourney) return;
+
+      if (state.journeyIndex < state.activeJourney.length - 1) {
+        centerOnJourneyPost(state.journeyIndex + 1);
+        render();
+        scheduleNextJourneyStep();
+      } else {
+        // Reached the end
+        stopJourneyPlayback();
+      }
+    }, JOURNEY_PAUSE_MS);
+  }
+
   function exitJourney() {
+    stopJourneyPlayback();
     state.activeJourney = null;
     state.journeyIndex = 0;
 
@@ -1715,7 +1829,9 @@ async function loadData() {
     timeControls.style.pointerEvents = "auto";
 
     journeyFooter.style.display = "none";
+    journeyProgressEl.style.display = "none";
     journeyCardsEl.innerHTML = "";
+    hideTooltip();
     buildSuggestions();
     journeyPanelTitle.textContent = "Start a Journey";
     journeyPanelSubtitle.textContent = "Click any post on the map to begin";
@@ -1742,11 +1858,21 @@ async function loadData() {
   journeyToggle.addEventListener("click", toggleJourneyMode);
 
   journeyCloseBtn.addEventListener("click", () => {
+    stopJourneyPlayback();
     if (state.currentMode === "journey") toggleJourneyMode();
+  });
+
+  journeyPlayBtn.addEventListener("click", () => {
+    if (state.journeyPlaying) {
+      stopJourneyPlayback();
+    } else {
+      startJourneyPlayback();
+    }
   });
 
   journeyNextBtn.addEventListener("click", () => {
     if (!state.activeJourney) return;
+    stopJourneyPlayback();
     if (state.journeyIndex < state.activeJourney.length - 1) {
       centerOnJourneyPost(state.journeyIndex + 1);
       render();
@@ -1755,6 +1881,7 @@ async function loadData() {
 
   journeyPrevBtn.addEventListener("click", () => {
     if (!state.activeJourney) return;
+    stopJourneyPlayback();
     if (state.journeyIndex > 0) {
       centerOnJourneyPost(state.journeyIndex - 1);
       render();
