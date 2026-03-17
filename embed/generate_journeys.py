@@ -37,7 +37,11 @@ MAX_JOURNEY_SIZE = 8
 
 def load_posts():
     with open(DATA_PATH) as f:
-        return json.load(f)
+        data = json.load(f)
+    # Handle both list format and {"posts": [...]} format
+    if isinstance(data, dict) and "posts" in data:
+        return data["posts"]
+    return data
 
 
 def euclidean(p1, p2):
@@ -52,10 +56,24 @@ def find_largest_clusters(posts, n=3):
     return [cid for cid, _ in counts.most_common(n)]
 
 
+def is_low_quality(post):
+    """Return True if the post is a low-quality filler (link roundup, video stub, etc.)."""
+    title = post.get("title", "")
+    if "Video for" in title or "Links for" in title:
+        return True
+    snippet = post.get("snippet", "")
+    if len(snippet) < 20:
+        return True
+    return False
+
+
 def find_earliest_post(posts, cluster_id):
-    """Find the post with the earliest date in a cluster."""
+    """Find the earliest post in a cluster, skipping low-quality filler posts."""
     cluster_posts = [p for p in posts if p["cluster_id"] == cluster_id]
-    return min(cluster_posts, key=lambda p: p["date"])
+    quality_posts = [p for p in cluster_posts if not is_low_quality(p)]
+    # Fall back to all posts if every post is filtered out
+    candidates = quality_posts if quality_posts else cluster_posts
+    return min(candidates, key=lambda p: p["date"])
 
 
 def build_journey(start_post, posts, posts_by_id, cluster_id):
@@ -72,7 +90,7 @@ def build_journey(start_post, posts, posts_by_id, cluster_id):
     for link_id in start_post.get("internal_links", []):
         if link_id in posts_by_id and len(journey_ids) < MAX_JOURNEY_SIZE:
             linked = posts_by_id[link_id]
-            if linked["id"] not in journey_ids:
+            if linked["id"] not in journey_ids and not is_low_quality(linked):
                 journey_ids.add(linked["id"])
                 journey_posts.append(linked)
 
@@ -81,7 +99,7 @@ def build_journey(start_post, posts, posts_by_id, cluster_id):
         for link_id in jp.get("internal_links", []):
             if link_id in posts_by_id and len(journey_ids) < MAX_JOURNEY_SIZE:
                 linked = posts_by_id[link_id]
-                if linked["id"] not in journey_ids:
+                if linked["id"] not in journey_ids and not is_low_quality(linked):
                     journey_ids.add(linked["id"])
                     journey_posts.append(linked)
 
@@ -93,6 +111,7 @@ def build_journey(start_post, posts, posts_by_id, cluster_id):
         if p["cluster_id"] != cluster_id
         and p["cluster_id"] not in EXCLUDED_CLUSTERS
         and p["id"] not in journey_ids
+        and not is_low_quality(p)
     ]
 
     while len(journey_posts) < TARGET_JOURNEY_SIZE and cross_cluster_posts:
@@ -113,25 +132,41 @@ def build_journey(start_post, posts, posts_by_id, cluster_id):
 
 
 def generate_title(posts_in_journey):
-    """Call Gemini API to generate a journey title."""
-    import google.generativeai as genai
+    """Call Gemini API to generate a journey title, with retry and fallback."""
+    import time
+    try:
+        import google.generativeai as genai
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-2.0-flash")
 
-    titles_list = "\n".join(
-        f"- {p['title']} ({p['date']})" for p in posts_in_journey
-    )
+        titles_list = "\n".join(
+            f"- {p['title']} ({p['date']})" for p in posts_in_journey
+        )
 
-    prompt = (
-        "These blog posts form an intellectual journey across economics, AI, and philosophy. "
-        "Give this reading path a compelling 4-8 word title that would make someone want to follow it. "
-        "Return ONLY the title.\n\n"
-        f"Posts in order:\n{titles_list}"
-    )
+        prompt = (
+            "These blog posts form an intellectual journey across economics, AI, and philosophy. "
+            "Give this reading path a compelling 4-8 word title that would make someone want to follow it. "
+            "Return ONLY the title.\n\n"
+            f"Posts in order:\n{titles_list}"
+        )
 
-    response = model.generate_content(prompt)
-    return response.text.strip().strip('"').strip("'").replace("**", "").strip()
+        for attempt in range(3):
+            try:
+                response = model.generate_content(prompt)
+                return response.text.strip().strip('"').strip("'").replace("**", "").strip()
+            except Exception as e:
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    wait = 10 * (attempt + 1)
+                    print(f"    Rate limited, waiting {wait}s...")
+                    time.sleep(wait)
+                else:
+                    raise
+    except Exception as e:
+        print(f"    Gemini title generation failed: {e}")
+
+    # Fallback: use start post title
+    return f"Journey: {posts_in_journey[0]['title'][:50]}"
 
 
 def main():
