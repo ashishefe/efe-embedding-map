@@ -777,17 +777,131 @@ html, body {
   font-weight: 600;
 }
 
-/* === RESPONSIVE === */
+/* === RESPONSIVE: TABLET (≤ 900px) === */
+@media (max-width: 900px) {
+  .header h1 { font-size: 19px; }
+  .header .subtitle { font-size: 11px; }
+  .time-speed button { padding: 5px 10px; font-size: 13px; }
+  .journey-panel { width: 300px; }
+  .about-btn.inside-panel { right: 312px; }
+}
+
+/* === RESPONSIVE: MOBILE (≤ 640px) === */
 @media (max-width: 640px) {
-  :root { --sidebar-width: 260px; }
-  .header h1 { font-size: 18px; }
-  .tooltip { max-width: 260px; }
-  .modal { padding: 24px; }
-  .time-controls { padding: 24px 12px 12px; gap: 8px; }
-  .time-date { font-size: 13px; min-width: 80px; }
+  :root { --sidebar-width: 85vw; }
+
+  .header {
+    padding: 10px 14px;
+    background: linear-gradient(135deg, transparent 0%, rgba(244,247,250,0.85) 30%, rgba(244,247,250,0.95) 100%);
+  }
+  .header h1 { font-size: 16px; }
+  .header .subtitle { font-size: 10px; }
+
+  .sidebar-toggle { width: 40px; height: 40px; top: 10px; left: 10px; }
+  .sidebar-toggle.open { left: calc(var(--sidebar-width) + 6px); }
+
+  .tooltip { max-width: 250px; padding: 10px 12px; }
+  .tooltip-title { font-size: 14px; }
+  .tooltip-snippet { font-size: 11px; }
+
+  .modal { padding: 20px; max-width: 95%; }
+  .modal h2 { font-size: 18px; }
+  .modal p { font-size: 13px; }
+
+  /* Time controls: stack compactly */
+  .time-controls {
+    padding: 16px 10px 10px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .time-play-btn { width: 32px; height: 32px; font-size: 12px; }
+  .time-slider-wrap { flex: 1 1 auto; min-width: 0; }
+  .time-date { font-size: 12px; min-width: 70px; }
   .time-stats { display: none; }
-  .journey-panel { width: 280px; }
-  .mode-indicator { right: 140px; }
+  .time-speed { gap: 3px; }
+  .time-speed button { padding: 4px 8px; font-size: 11px; }
+
+  /* Bottom action buttons: compact row */
+  .edge-toggle { bottom: 72px; left: 10px; padding: 5px 10px; font-size: 11px; }
+  .journey-toggle { bottom: 72px; right: 50px; padding: 5px 10px; font-size: 11px; }
+  .about-btn { bottom: 72px; right: 10px; width: 34px; height: 34px; font-size: 16px; }
+  .about-btn.inside-panel { right: 10px; bottom: auto; top: 10px; }
+
+  /* Journey panel: full width overlay on mobile */
+  .journey-panel {
+    width: 100%;
+    max-width: 100%;
+    z-index: 250; /* Above sidebar toggle */
+  }
+  .journey-panel-header { padding: 14px 14px 10px; padding-right: 48px; }
+  .journey-panel-header h3 { font-size: 15px; }
+  .journey-close-btn { top: 12px; right: 12px; }
+  .about-btn.inside-panel { display: none; } /* Hide about when journey panel covers full width */
+  .journey-card { padding: 8px 14px; gap: 8px; }
+  .journey-card-title { font-size: 13px; }
+  .journey-card-snippet { font-size: 10px; }
+  .journey-num { width: 22px; height: 22px; font-size: 11px; }
+  .journey-suggestions { padding: 10px 14px; }
+  .journey-suggestion-item { font-size: 12px; padding: 8px 10px; }
+  .journey-footer { padding: 10px 14px; }
+  .journey-footer button { padding: 8px 8px; font-size: 11px; }
+
+  .mode-indicator { right: 60px; top: 12px; font-size: 11px; padding: 3px 8px; }
+
+  .search-container { padding: 48px 12px 10px; }
+  .search-icon { left: 20px; top: 58px; }
+  .search-clear { right: 20px; top: 54px; }
+  .cluster-item { padding: 5px 12px; }
+  .cluster-label { font-size: 11px; }
+}
+
+/* === RESPONSIVE: LANDSCAPE MOBILE (short height) === */
+@media (max-height: 500px) {
+  :root { --sidebar-width: 260px; }
+
+  .header { padding: 6px 14px; }
+  .header h1 { font-size: 15px; }
+  .header .subtitle { display: none; }
+
+  .sidebar-toggle { top: 6px; left: 6px; width: 36px; height: 36px; font-size: 14px; }
+  .sidebar-toggle.open { left: calc(var(--sidebar-width) + 4px); }
+
+  .time-controls { padding: 6px 10px 5px; gap: 6px; }
+  .time-play-btn { width: 30px; height: 30px; font-size: 11px; }
+  .time-date { font-size: 11px; min-width: 60px; }
+  .time-stats { display: none; }
+  .time-speed button { padding: 3px 6px; font-size: 10px; }
+
+  .edge-toggle { bottom: 42px; padding: 5px 10px; font-size: 11px; }
+  .journey-toggle { bottom: 42px; padding: 5px 10px; font-size: 11px; }
+  .about-btn { bottom: 42px; width: 32px; height: 32px; font-size: 15px; }
+
+  .journey-panel {
+    width: 280px;
+    font-size: 12px;
+  }
+  .journey-panel-header { padding: 10px 12px 8px; padding-right: 44px; }
+  .journey-panel-header h3 { font-size: 14px; }
+  .journey-card { padding: 6px 12px; }
+  .journey-card-title { font-size: 12px; }
+  .journey-footer button { padding: 6px 8px; font-size: 10px; }
+
+  .tooltip { max-width: 220px; padding: 8px 10px; }
+  .tooltip-title { font-size: 13px; }
+
+  .modal { max-height: 90vh; padding: 16px; }
+
+  .mode-indicator { top: 6px; font-size: 10px; }
+
+  .about-btn.inside-panel { right: 292px; }
+}
+
+/* === RESPONSIVE: SMALL LANDSCAPE (very short) === */
+@media (max-height: 400px) and (max-width: 900px) {
+  :root { --sidebar-width: 220px; }
+  .time-speed { display: none; }
+  .edge-toggle span:last-child { display: none; }
+  .journey-toggle span:last-child { display: none; }
 }
 </style>
 </head>
@@ -987,17 +1101,32 @@ async function loadData() {
   window.addEventListener("resize", () => { resizeCanvas(); render(); });
 
   // === SCALES ===
-  // Map data coords [0, 1000] to screen space with padding
-  const padding = 80;
+  // Map data coords [0, 1000] to screen space with uniform aspect ratio
+  // Uses the smaller dimension so the map is always square (not stretched)
+  // Reserves space for bottom UI chrome (time controls + buttons)
+  function getPadding() { return Math.min(80, Math.min(width, height) * 0.08); }
+  function getMapLayout() {
+    const pad = getPadding();
+    // Reserve bottom space for time controls so map doesn't hide behind them
+    const bottomReserve = height < 500 ? 55 : (height < 700 ? 70 : 60);
+    const topReserve = height < 500 ? 5 : 20;
+    const availH = height - bottomReserve - topReserve;
+    const extent = Math.min(width, availH) - 2 * pad;
+    const offsetX = (width - extent) / 2;
+    const offsetY = topReserve + (availH - extent) / 2;
+    return { extent, offsetX, offsetY };
+  }
   function dataToScreen(x, y) {
-    const sx = padding + (x / 1000) * (width - 2 * padding);
-    const sy = padding + (y / 1000) * (height - 2 * padding);
+    const { extent, offsetX, offsetY } = getMapLayout();
+    const sx = offsetX + (x / 1000) * extent;
+    const sy = offsetY + (y / 1000) * extent;
     return state.transform.apply([sx, sy]);
   }
   function screenToData(sx, sy) {
+    const { extent, offsetX, offsetY } = getMapLayout();
     const [px, py] = state.transform.invert([sx, sy]);
-    const dx = ((px - padding) / (width - 2 * padding)) * 1000;
-    const dy = ((py - padding) / (height - 2 * padding)) * 1000;
+    const dx = ((px - offsetX) / extent) * 1000;
+    const dy = ((py - offsetY) / extent) * 1000;
     return [dx, dy];
   }
 
