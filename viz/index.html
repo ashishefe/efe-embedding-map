@@ -302,9 +302,12 @@ html, body {
   font-size: 20px;
   font-weight: 700;
   color: white;
-  transition: background 0.2s, transform 0.15s;
+  transition: background 0.2s, transform 0.15s, right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .about-btn:hover { background: var(--accent-hover); transform: scale(1.08); }
+.about-btn.inside-panel {
+  right: 352px;
+}
 
 .modal-overlay {
   position: fixed;
@@ -484,19 +487,24 @@ html, body {
 
 .time-speed {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
 }
 .time-speed button {
-  padding: 2px 6px;
+  padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: 5px;
   background: transparent;
-  font-size: 10px;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   font-family: var(--font-body);
   transition: all 0.15s;
+}
+.time-speed button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .time-speed button.active {
   background: var(--accent);
@@ -524,7 +532,7 @@ html, body {
   transition: background 0.15s, border-color 0.2s;
   user-select: none;
 }
-.journey-toggle:hover { background: rgba(244, 247, 250, 1); }
+.journey-toggle:hover { background: var(--accent); color: white; border-color: var(--accent); }
 .journey-toggle.active {
   background: var(--accent);
   color: white;
@@ -577,6 +585,7 @@ html, body {
 
 .journey-panel-header {
   padding: 20px 16px 12px;
+  padding-right: 52px;
   border-bottom: 1px solid var(--border);
 }
 .journey-panel-header h3 {
@@ -585,6 +594,7 @@ html, body {
   font-size: 16px;
   color: var(--text);
   margin-bottom: 4px;
+  word-wrap: break-word;
 }
 .journey-panel-header .journey-subtitle {
   font-size: 11px;
@@ -1838,18 +1848,22 @@ async function loadData() {
     render();
   }
 
+  const aboutBtn = document.getElementById("about-btn");
+
   function toggleJourneyMode() {
     if (state.currentMode === "journey") {
       state.currentMode = "normal";
       journeyToggle.classList.remove("active");
       modeIndicator.classList.remove("visible");
       journeyPanel.classList.remove("open");
+      aboutBtn.classList.remove("inside-panel");
       exitJourney();
     } else {
       state.currentMode = "journey";
       journeyToggle.classList.add("active");
       modeIndicator.classList.add("visible");
       journeyPanel.classList.add("open");
+      aboutBtn.classList.add("inside-panel");
       buildSuggestions();
     }
     render();
