@@ -1,0 +1,9 @@
+.env
+data/*.npy
+data/embedding_progress.json
+data/embedding_batches/
+__pycache__/
+*.pyc
+viz/index_standalone.html
+.DS_Store
+.venv/

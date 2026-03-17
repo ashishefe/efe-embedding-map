@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EconForEverybody — Blog Embedding Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* === CSS VARIABLES === */
+:root {
+  --bg: #FAF6F1;
+  --bg-panel: rgba(255, 253, 250, 0.88);
+  --text: #2C2418;
+  --text-secondary: #6B5E50;
+  --text-muted: #9C8E7E;
+  --border: rgba(44, 36, 24, 0.08);
+  --accent: #C4742E;
+  --accent-hover: #A85E1E;
+  --shadow: 0 4px 24px rgba(44, 36, 24, 0.08), 0 1px 4px rgba(44, 36, 24, 0.04);
+  --shadow-lg: 0 12px 48px rgba(44, 36, 24, 0.12), 0 2px 8px rgba(44, 36, 24, 0.06);
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --radius: 10px;
+  --sidebar-width: 300px;
+}
+
+/* === RESET & BASE === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === CANVAS === */
+#map-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: grab;
+}
+#map-canvas:active { cursor: grabbing; }
+
+/* === HEADER === */
+.header {
+  position: fixed;
+  top: 0; right: 0;
+  z-index: 100;
+  text-align: right;
+  pointer-events: none;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, transparent 0%, rgba(250,246,241,0.7) 40%, rgba(250,246,241,0.9) 100%);
+}
+.header h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.header .subtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+/* === SIDEBAR (LEGEND) === */
+.sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-width);
+  height: 100%;
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow);
+}
+.sidebar.collapsed {
+  transform: translateX(calc(-1 * var(--sidebar-width)));
+}
+
+.sidebar-toggle {
+  position: fixed;
+  top: 16px; left: 16px;
+  z-index: 250;
+  width: 36px; height: 36px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+.sidebar-toggle:hover { background: rgba(255, 253, 250, 1); }
+.sidebar-toggle.open { left: calc(var(--sidebar-width) + 8px); }
+
+/* === SEARCH === */
+.search-container {
+  padding: 56px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.6);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(196, 116, 46, 0.1);
+}
+.search-input::placeholder { color: var(--text-muted); }
+.search-icon {
+  position: absolute;
+  left: 24px;
+  top: 66px;
+  color: var(--text-muted);
+  font-size: 13px;
+  pointer-events: none;
+}
+.search-clear {
+  position: absolute;
+  right: 24px;
+  top: 62px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  display: none;
+}
+.search-clear.visible { display: block; }
+.search-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  height: 16px;
+}
+
+/* === CLUSTER LIST === */
+.cluster-controls {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.cluster-controls button {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cluster-controls button:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.cluster-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.cluster-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.2s;
+  user-select: none;
+}
+.cluster-item:hover { background: rgba(44, 36, 24, 0.03); }
+.cluster-item.hidden { opacity: 0.35; }
+.cluster-swatch {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cluster-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.3;
+}
+.cluster-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.filter-status {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* === TOOLTIP === */
+.tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 300;
+  background: var(--bg-panel);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 14px 16px;
+  max-width: 320px;
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+.tooltip.visible { opacity: 1; }
+.tooltip-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.tooltip-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.tooltip-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tooltip-cluster {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(44, 36, 24, 0.06);
+  color: var(--text-secondary);
+}
+.tooltip-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* === ABOUT BUTTON & MODAL === */
+.about-btn {
+  position: fixed;
+  bottom: 80px; right: 20px;
+  z-index: 200;
+  width: 32px; height: 32px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background 0.2s;
+}
+.about-btn:hover { background: rgba(255, 253, 250, 1); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 36, 24, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+.modal-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal {
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 32px;
+}
+.modal h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+.modal p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.modal .credit {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+/* === EDGE TOGGLE (Phase 5) === */
+.edge-toggle {
+  position: fixed;
+  bottom: 80px; left: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+  user-select: none;
+}
+.edge-toggle:hover { background: rgba(255, 253, 250, 1); }
+.edge-toggle .toggle-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background 0.2s;
+}
+.edge-toggle.active .toggle-dot { background: var(--accent); }
+
+/* === TIME CONTROLS (Phase 4) === */
+.time-controls {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: linear-gradient(to top, rgba(250,246,241,0.95) 60%, transparent);
+  padding: 32px 24px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.time-play-btn {
+  width: 36px; height: 36px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.time-play-btn:hover { background: var(--accent); color: white; }
+.time-play-btn.playing { background: var(--accent); color: white; }
+
+.time-slider-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.time-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.time-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px; height: 18px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: transform 0.1s;
+}
+.time-slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.2); }
+.time-slider::-moz-range-thumb {
+  width: 18px; height: 18px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: none;
+  cursor: grab;
+}
+.time-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+}
+
+.time-date {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text);
+  min-width: 110px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.time-stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 100px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.time-speed {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.time-speed button {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+.time-speed button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* === JOURNEY MODE (Phase 6) === */
+.journey-toggle {
+  position: fixed;
+  bottom: 80px; right: 60px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.15s, border-color 0.2s;
+  user-select: none;
+}
+.journey-toggle:hover { background: rgba(255, 253, 250, 1); }
+.journey-toggle.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.mode-indicator {
+  position: fixed;
+  top: 16px; right: 200px;
+  z-index: 200;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 4px 12px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+.mode-indicator.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.journey-panel {
+  position: fixed;
+  top: 0; right: 0;
+  width: 340px;
+  height: 100%;
+  background: var(--bg-panel);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid var(--border);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow);
+}
+.journey-panel.open {
+  transform: translateX(0);
+}
+
+.journey-panel-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.journey-panel-header h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.journey-panel-header .journey-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.journey-close-btn {
+  position: absolute;
+  top: 16px; right: 16px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.journey-close-btn:hover { background: rgba(44, 36, 24, 0.06); }
+
+.journey-cards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.journey-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border);
+}
+.journey-card:hover { background: rgba(44, 36, 24, 0.03); }
+.journey-card.active-card { background: rgba(196, 116, 46, 0.06); }
+
+.journey-num {
+  width: 24px; height: 24px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.journey-card-content { flex: 1; min-width: 0; }
+.journey-card-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+.journey-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.journey-card-cluster {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(44, 36, 24, 0.06);
+  color: var(--text-secondary);
+}
+.journey-card-snippet {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.journey-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+.journey-footer button {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.journey-footer button:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.journey-footer button.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.journey-footer button.primary:hover {
+  background: var(--accent-hover);
+}
+
+/* Journey suggestions (shown when journey mode first toggled on) */
+.journey-suggestions {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.journey-suggestions h4 {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.journey-suggestion-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.15s;
+  margin-bottom: 2px;
+}
+.journey-suggestion-item:hover {
+  background: rgba(196, 116, 46, 0.08);
+}
+.journey-suggestion-item::before {
+  content: "→ ";
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 640px) {
+  :root { --sidebar-width: 260px; }
+  .header h1 { font-size: 18px; }
+  .tooltip { max-width: 260px; }
+  .modal { padding: 24px; }
+  .time-controls { padding: 24px 12px 12px; gap: 8px; }
+  .time-date { font-size: 13px; min-width: 80px; }
+  .time-stats { display: none; }
+  .journey-panel { width: 280px; }
+  .mode-indicator { right: 140px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="map-canvas"></canvas>
+
+<div class="header">
+  <h1>EconForEverybody</h1>
+  <div class="subtitle">A map of ideas — 2016 to 2026</div>
+</div>
+
+<button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle legend">☰</button>
+
+<aside class="sidebar collapsed" id="sidebar">
+  <div class="search-container" style="position:relative;">
+    <span class="search-icon">⌕</span>
+    <input type="text" class="search-input" id="search-input" placeholder="Search posts..." aria-label="Search posts">
+    <button class="search-clear" id="search-clear" aria-label="Clear search">×</button>
+    <div class="search-status" id="search-status"></div>
+  </div>
+  <div class="cluster-controls">
+    <button id="show-all-btn">Show all</button>
+    <button id="hide-all-btn">Hide all</button>
+  </div>
+  <div class="cluster-list" id="cluster-list"></div>
+  <div class="filter-status" id="filter-status"></div>
+</aside>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltip-title"></div>
+  <div class="tooltip-meta">
+    <span class="tooltip-date" id="tooltip-date"></span>
+    <span class="tooltip-cluster" id="tooltip-cluster"></span>
+  </div>
+  <div class="tooltip-snippet" id="tooltip-snippet"></div>
+</div>
+
+<div class="edge-toggle" id="edge-toggle">
+  <span class="toggle-dot"></span>
+  <span>Show connections</span>
+</div>
+
+<div class="time-controls" id="time-controls">
+  <button class="time-play-btn" id="time-play-btn" aria-label="Play/Pause">▶</button>
+  <div class="time-slider-wrap">
+    <input type="range" class="time-slider" id="time-slider" min="0" max="1000" value="1000">
+    <div class="time-slider-labels">
+      <span id="time-label-start"></span>
+      <span id="time-label-end"></span>
+    </div>
+  </div>
+  <div class="time-date" id="time-date"></div>
+  <div class="time-stats" id="time-stats"></div>
+  <div class="time-speed">
+    <button data-speed="0.25">¼×</button>
+    <button data-speed="0.5">½×</button>
+    <button data-speed="1" class="active">1×</button>
+    <button data-speed="2">2×</button>
+  </div>
+</div>
+
+<div class="journey-toggle" id="journey-toggle">
+  <span>Journey mode</span>
+</div>
+
+<div class="mode-indicator" id="mode-indicator">Journey Mode ✦</div>
+
+<div class="journey-panel" id="journey-panel">
+  <div class="journey-panel-header" style="position:relative;">
+    <h3 id="journey-panel-title">Start a Journey</h3>
+    <div class="journey-subtitle" id="journey-panel-subtitle">Click any post on the map to begin</div>
+    <button class="journey-close-btn" id="journey-close-btn">×</button>
+  </div>
+  <div class="journey-suggestions" id="journey-suggestions"></div>
+  <div class="journey-cards" id="journey-cards"></div>
+  <div class="journey-footer" id="journey-footer" style="display:none;">
+    <button id="journey-prev-btn">← Previous</button>
+    <button id="journey-next-btn" class="primary">Next →</button>
+  </div>
+</div>
+
+<button class="about-btn" id="about-btn" aria-label="About this map">?</button>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="modal-close">×</button>
+    <h2>About This Map</h2>
+    <p>Each dot is a blog post from <em>EconForEverybody</em>, a blog by Ashish Kulkarni spanning economics, education, philosophy, AI, and alignment from 2016 to 2026.</p>
+    <p>Posts that are about similar topics are placed closer together. An AI model read every post and converted it into a numerical "fingerprint" of its meaning. A technique called UMAP arranged these fingerprints on a 2D plane so that similar posts land near each other.</p>
+    <p>The colors represent thematic clusters discovered automatically by another algorithm (HDBSCAN). They weren't chosen by hand — the algorithm found natural groupings in the content.</p>
+    <p>The most interesting features of this map aren't the clusters themselves, but the <em>bridges between clusters</em> — the posts that connect economics to AI alignment, Pirsig to Coase, pedagogy to technology.</p>
+    <div class="credit">
+      Built with ♦ inspired by <a href="http://www.s-anand.net/blog/blog-embeddings-map/" target="_blank" style="color:var(--accent);">S Anand's blog embedding map</a>. Embeddings by Gemini, layout by UMAP, clustering by HDBSCAN, visualization with D3.js.
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script>
+// === DATA LOADING ===
+const INLINE_DATA = window.__INLINE_DATA__ || null;
+async function loadData() {
+  if (INLINE_DATA) {
+    // Support both wrapped {posts, curated_journeys} and plain array formats
+    if (Array.isArray(INLINE_DATA)) return { posts: INLINE_DATA, curated_journeys: [] };
+    return INLINE_DATA;
+  }
+  const resp = await fetch("posts_with_coords.json");
+  const data = await resp.json();
+  if (Array.isArray(data)) return { posts: data, curated_journeys: [] };
+  return data;
+}
+
+// === MAIN APPLICATION ===
+(async function() {
+  const { posts, curated_journeys } = await loadData();
+  const canvas = document.getElementById("map-canvas");
+  const ctx = canvas.getContext("2d");
+
+  // === STATE ===
+  const state = {
+    searchQuery: "",
+    hiddenClusters: new Set(),
+    hoveredPost: null,
+    selectedPost: null, // for mobile two-tap
+    transform: d3.zoomIdentity,
+    pulsePost: null,
+    pulseStart: 0,
+    // Phase 4: Time
+    timeMax: null,
+    timePlaying: false,
+    timeSpeed: 1,
+    glowPosts: new Map(),
+    // Phase 5: Edges
+    edgesVisible: false,
+    hoveredEdgePost: null,
+    // Phase 6: Journey
+    currentMode: "normal", // "normal" | "journey"
+    activeJourney: null, // array of post ids
+    journeyIndex: 0, // current position in journey
+  };
+
+  // === DATE HELPERS ===
+  const allDates = posts.map(p => p.date).filter(Boolean).sort();
+  const dateMin = allDates[0];
+  const dateMax = allDates[allDates.length - 1];
+  // Build unique months for slider steps
+  const uniqueMonths = [...new Set(allDates.map(d => d.slice(0, 7)))].sort();
+
+  function formatMonth(dateStr) {
+    if (!dateStr) return "";
+    const [y, m] = dateStr.split("-");
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${months[parseInt(m)-1]} ${y}`;
+  }
+
+  // === CLUSTER INFO ===
+  const clusterMap = new Map();
+  posts.forEach(p => {
+    if (!clusterMap.has(p.cluster_id)) {
+      clusterMap.set(p.cluster_id, {
+        id: p.cluster_id,
+        label: p.cluster_label,
+        color: p.cluster_color,
+        count: 0,
+      });
+    }
+    clusterMap.get(p.cluster_id).count++;
+  });
+  const clusters = Array.from(clusterMap.values())
+    .sort((a, b) => {
+      if (a.id === -1) return 1;
+      if (b.id === -1) return -1;
+      return b.count - a.count;
+    });
+
+  // === CANVAS SETUP ===
+  let width, height, dpr;
+  function resizeCanvas() {
+    dpr = window.devicePixelRatio || 1;
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + "px";
+    canvas.style.height = height + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeCanvas();
+  window.addEventListener("resize", () => { resizeCanvas(); render(); });
+
+  // === SCALES ===
+  // Map data coords [0, 1000] to screen space with padding
+  const padding = 80;
+  function dataToScreen(x, y) {
+    const sx = padding + (x / 1000) * (width - 2 * padding);
+    const sy = padding + (y / 1000) * (height - 2 * padding);
+    return state.transform.apply([sx, sy]);
+  }
+  function screenToData(sx, sy) {
+    const [px, py] = state.transform.invert([sx, sy]);
+    const dx = ((px - padding) / (width - 2 * padding)) * 1000;
+    const dy = ((py - padding) / (height - 2 * padding)) * 1000;
+    return [dx, dy];
+  }
+
+  // === QUADTREE for spatial lookup ===
+  // We build a quadtree in screen space and rebuild on zoom/resize
+  let quadtree;
+  function rebuildQuadtree() {
+    quadtree = d3.quadtree()
+      .x(d => {
+        const [sx] = dataToScreen(d.x, d.y);
+        return sx;
+      })
+      .y(d => {
+        const [, sy] = dataToScreen(d.x, d.y);
+        return sy;
+      })
+      .addAll(posts);
+  }
+  rebuildQuadtree();
+
+  // === VISIBILITY ===
+  function isPostInTimeRange(p) {
+    if (!state.timeMax) return true;
+    return p.date && p.date <= state.timeMax;
+  }
+
+  function isPostVisible(p) {
+    if (!isPostInTimeRange(p)) return false;
+    if (state.hiddenClusters.has(p.cluster_id)) return false;
+    if (state.searchQuery) {
+      const q = state.searchQuery.toLowerCase();
+      const matchTitle = p.title.toLowerCase().includes(q);
+      const matchSnippet = (p.snippet || "").toLowerCase().includes(q);
+      return matchTitle || matchSnippet;
+    }
+    return true;
+  }
+
+  function postOpacity(p) {
+    // Journey mode: only journey posts are full opacity
+    if (state.activeJourney) {
+      if (state.activeJourney.includes(p.id)) return 1.0;
+      return 0.08;
+    }
+    if (!isPostInTimeRange(p)) return 0;
+    if (state.searchQuery) {
+      return isPostVisible(p) ? 1.0 : 0.08;
+    }
+    if (state.hiddenClusters.has(p.cluster_id)) return 0.05;
+    return 1.0;
+  }
+
+  // === RENDER ===
+  function render() {
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const k = state.transform.k;
+    const baseRadius = Math.max(2, 4 / Math.sqrt(k));
+    const hoverRadius = baseRadius * 1.6;
+    const searchRadius = baseRadius * 1.5;
+
+    // Draw edges (Phase 5) — render before points so points are on top
+    if (state.edgesVisible) {
+      const edgePostById = new Map(posts.map(p => [p.id, p]));
+      const journeySet = state.activeJourney ? new Set(state.activeJourney) : null;
+      for (const p of posts) {
+        // In journey mode, only show edges between journey posts
+        if (journeySet && !journeySet.has(p.id)) continue;
+        if (!journeySet && !isPostInTimeRange(p)) continue;
+        const alpha0 = postOpacity(p);
+        if (alpha0 < 0.01) continue;
+        const [sx1, sy1] = dataToScreen(p.x, p.y);
+
+        for (const linkId of (p.internal_links || [])) {
+          const target = edgePostById.get(linkId);
+          if (!target) continue;
+          if (journeySet && !journeySet.has(linkId)) continue;
+          if (!journeySet && !isPostInTimeRange(target)) continue;
+          const alphaT = postOpacity(target);
+          if (alphaT < 0.01) continue;
+          // Avoid drawing each edge twice
+          if (p.id > linkId) continue;
+
+          const [sx2, sy2] = dataToScreen(target.x, target.y);
+          const isCrossCluster = p.cluster_id !== target.cluster_id;
+          const isHighlighted = state.hoveredPost &&
+            (state.hoveredPost.id === p.id || state.hoveredPost.id === linkId);
+
+          // Quadratic bezier with perpendicular control point
+          const mx = (sx1 + sx2) / 2;
+          const my = (sy1 + sy2) / 2;
+          const dx = sx2 - sx1;
+          const dy = sy2 - sy1;
+          const dist = Math.hypot(dx, dy);
+          const offset = dist * 0.15;
+          const cx = mx + (-dy / dist) * offset;
+          const cy = my + (dx / dist) * offset;
+
+          ctx.beginPath();
+          ctx.moveTo(sx1, sy1);
+          ctx.quadraticCurveTo(cx, cy, sx2, sy2);
+
+          if (isHighlighted) {
+            ctx.strokeStyle = isCrossCluster ? "#C4742E" : "#9C8E7E";
+            ctx.globalAlpha = 0.7;
+            ctx.lineWidth = 2;
+          } else {
+            ctx.strokeStyle = isCrossCluster ? "#C4742E" : "#BAB0AC";
+            ctx.globalAlpha = isCrossCluster ? 0.35 : 0.15;
+            ctx.lineWidth = 1;
+          }
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Draw journey path (Phase 6) — dashed line connecting journey posts
+    if (state.activeJourney && state.activeJourney.length > 1) {
+      const jpById = new Map(posts.map(p => [p.id, p]));
+      const journeyPosts = state.activeJourney.map(id => jpById.get(id)).filter(Boolean);
+      if (journeyPosts.length > 1) {
+        ctx.save();
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = "rgba(196, 116, 46, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        const [fx, fy] = dataToScreen(journeyPosts[0].x, journeyPosts[0].y);
+        ctx.moveTo(fx, fy);
+        for (let i = 1; i < journeyPosts.length; i++) {
+          const [sx, sy] = dataToScreen(journeyPosts[i].x, journeyPosts[i].y);
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+
+        // Numbered labels on journey posts
+        journeyPosts.forEach((jp, i) => {
+          const [sx, sy] = dataToScreen(jp.x, jp.y);
+          const labelR = Math.max(10, 14 / Math.sqrt(k));
+          // White circle background
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = "#C4742E";
+          ctx.beginPath();
+          ctx.arc(sx, sy - labelR - 4, labelR, 0, Math.PI * 2);
+          ctx.fill();
+          // Number text
+          ctx.fillStyle = "#fff";
+          ctx.font = `bold ${Math.max(9, 11 / Math.sqrt(k))}px 'DM Sans', sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(i + 1), sx, sy - labelR - 4);
+        });
+      }
+    }
+
+    // Draw all posts
+    for (const p of posts) {
+      const [sx, sy] = dataToScreen(p.x, p.y);
+
+      // Skip if off-screen
+      if (sx < -20 || sx > width + 20 || sy < -20 || sy > height + 20) continue;
+
+      const alpha = postOpacity(p);
+      if (alpha < 0.01) continue;
+
+      let r = baseRadius;
+      if (state.hoveredPost === p) r = hoverRadius;
+      else if (state.activeJourney && state.activeJourney.includes(p.id)) r = baseRadius * 1.8;
+      else if (state.searchQuery && isPostVisible(p)) r = searchRadius;
+
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.cluster_color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Source indicator
+      if (p.source === "substack") {
+        ctx.strokeStyle = p.cluster_color;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r + 2, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (p.source === "both") {
+        ctx.fillStyle = "#fff";
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.beginPath();
+        ctx.arc(sx, sy, r * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Glow animation for newly appearing posts (time animation)
+    const now = performance.now();
+    let hasActiveGlow = false;
+    for (const [pid, startTime] of state.glowPosts) {
+      const elapsed = now - startTime;
+      if (elapsed > 500) {
+        state.glowPosts.delete(pid);
+        continue;
+      }
+      hasActiveGlow = true;
+      const post = posts.find(p => p.id === pid);
+      if (!post) continue;
+      const [sx, sy] = dataToScreen(post.x, post.y);
+      const progress = elapsed / 500;
+      const glowScale = 1 + 1.5 * (1 - progress);
+      const glowAlpha = 0.7 * (1 - progress);
+      ctx.globalAlpha = glowAlpha;
+      ctx.fillStyle = post.cluster_color;
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseRadius * glowScale * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (hasActiveGlow) requestAnimationFrame(render);
+
+    // Pulse animation
+    if (state.pulsePost) {
+      const elapsed = performance.now() - state.pulseStart;
+      if (elapsed < 400) {
+        const progress = elapsed / 400;
+        const scale = 1 + 2 * (1 - progress);
+        const alpha = 0.6 * (1 - progress);
+        const [sx, sy] = dataToScreen(state.pulsePost.x, state.pulsePost.y);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = state.pulsePost.cluster_color;
+        ctx.beginPath();
+        ctx.arc(sx, sy, baseRadius * scale * 2, 0, Math.PI * 2);
+        ctx.fill();
+        requestAnimationFrame(render);
+      } else {
+        state.pulsePost = null;
+      }
+    }
+
+    ctx.restore();
+  }
+
+  // === ZOOM ===
+  const zoom = d3.zoom()
+    .scaleExtent([0.3, 20])
+    .on("zoom", (event) => {
+      state.transform = event.transform;
+      rebuildQuadtree();
+      render();
+    });
+  d3.select(canvas).call(zoom);
+
+  // === FIND NEAREST POST ===
+  function findNearest(mx, my, maxDist = 20) {
+    let nearest = null;
+    let nearestDist = maxDist;
+    quadtree.visit((node, x0, y0, x1, y1) => {
+      if (node.data) {
+        const [sx, sy] = dataToScreen(node.data.x, node.data.y);
+        const d = Math.hypot(mx - sx, my - sy);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = node.data;
+        }
+      }
+      // Check if this quad could contain a closer point
+      const cx = Math.max(x0, Math.min(mx, x1));
+      const cy = Math.max(y0, Math.min(my, y1));
+      return Math.hypot(mx - cx, my - cy) > nearestDist;
+    });
+    return nearest;
+  }
+
+  // === TOOLTIP ===
+  const tooltipEl = document.getElementById("tooltip");
+  const tooltipTitle = document.getElementById("tooltip-title");
+  const tooltipDate = document.getElementById("tooltip-date");
+  const tooltipCluster = document.getElementById("tooltip-cluster");
+  const tooltipSnippet = document.getElementById("tooltip-snippet");
+
+  function showTooltip(post, mx, my) {
+    tooltipTitle.textContent = post.title;
+    tooltipDate.textContent = post.date || "";
+    tooltipCluster.textContent = post.cluster_label;
+    tooltipCluster.style.borderLeft = `3px solid ${post.cluster_color}`;
+    tooltipSnippet.textContent = post.snippet || "";
+
+    // Position with viewport clamping
+    const tw = 320;
+    const th = 140;
+    let tx = mx + 16;
+    let ty = my - 20;
+    if (tx + tw > width - 10) tx = mx - tw - 16;
+    if (ty + th > height - 10) ty = height - th - 10;
+    if (ty < 10) ty = 10;
+
+    tooltipEl.style.left = tx + "px";
+    tooltipEl.style.top = ty + "px";
+    tooltipEl.classList.add("visible");
+  }
+
+  function hideTooltip() {
+    tooltipEl.classList.remove("visible");
+  }
+
+  // === MOUSE EVENTS ===
+  let isTouchDevice = false;
+
+  canvas.addEventListener("mousemove", (e) => {
+    if (isTouchDevice) return;
+    const nearest = findNearest(e.clientX, e.clientY);
+    if (nearest && postOpacity(nearest) > 0.1) {
+      state.hoveredPost = nearest;
+      canvas.style.cursor = "pointer";
+      showTooltip(nearest, e.clientX, e.clientY);
+    } else {
+      state.hoveredPost = null;
+      canvas.style.cursor = "grab";
+      hideTooltip();
+    }
+    render();
+  });
+
+  canvas.addEventListener("click", (e) => {
+    if (isTouchDevice) return;
+    if (state.currentMode === "journey") return; // handled by journey click
+    const nearest = findNearest(e.clientX, e.clientY);
+    if (nearest && postOpacity(nearest) > 0.1) {
+      // Pulse animation
+      state.pulsePost = nearest;
+      state.pulseStart = performance.now();
+      render();
+      // Open URL
+      const url = nearest.alt_url || nearest.url;
+      setTimeout(() => window.open(url, "_blank"), 200);
+    }
+  });
+
+  // === TOUCH EVENTS (mobile two-tap) ===
+  canvas.addEventListener("touchstart", () => { isTouchDevice = true; }, { once: true });
+
+  canvas.addEventListener("touchend", (e) => {
+    const touch = e.changedTouches[0];
+    const nearest = findNearest(touch.clientX, touch.clientY);
+    if (!nearest || postOpacity(nearest) < 0.1) {
+      state.selectedPost = null;
+      hideTooltip();
+      render();
+      return;
+    }
+
+    if (state.selectedPost === nearest) {
+      // Second tap — open
+      state.pulsePost = nearest;
+      state.pulseStart = performance.now();
+      render();
+      const url = nearest.alt_url || nearest.url;
+      setTimeout(() => window.open(url, "_blank"), 200);
+      state.selectedPost = null;
+    } else {
+      // First tap — show tooltip
+      state.selectedPost = nearest;
+      state.hoveredPost = nearest;
+      showTooltip(nearest, touch.clientX, touch.clientY);
+      render();
+    }
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    state.hoveredPost = null;
+    hideTooltip();
+    render();
+  });
+
+  // === SIDEBAR ===
+  const sidebar = document.getElementById("sidebar");
+  const sidebarToggle = document.getElementById("sidebar-toggle");
+  sidebarToggle.addEventListener("click", () => {
+    sidebar.classList.toggle("collapsed");
+    sidebarToggle.classList.toggle("open");
+    sidebarToggle.textContent = sidebar.classList.contains("collapsed") ? "☰" : "✕";
+  });
+
+  // === CLUSTER LIST ===
+  const clusterListEl = document.getElementById("cluster-list");
+  const filterStatusEl = document.getElementById("filter-status");
+
+  function buildClusterList() {
+    clusterListEl.innerHTML = "";
+    clusters.forEach(c => {
+      const item = document.createElement("div");
+      item.className = "cluster-item" + (state.hiddenClusters.has(c.id) ? " hidden" : "");
+      item.innerHTML = `
+        <div class="cluster-swatch" style="background:${c.color}"></div>
+        <div class="cluster-label">${c.label}</div>
+        <div class="cluster-count">${c.count}</div>
+      `;
+      item.addEventListener("click", () => {
+        if (state.hiddenClusters.has(c.id)) {
+          state.hiddenClusters.delete(c.id);
+        } else {
+          state.hiddenClusters.add(c.id);
+        }
+        item.classList.toggle("hidden");
+        updateFilterStatus();
+        render();
+      });
+      clusterListEl.appendChild(item);
+    });
+  }
+
+  function updateFilterStatus() {
+    const visible = posts.filter(p => postOpacity(p) > 0.1).length;
+    filterStatusEl.textContent = `Showing ${visible.toLocaleString()} of ${posts.length.toLocaleString()} posts`;
+  }
+
+  document.getElementById("show-all-btn").addEventListener("click", () => {
+    state.hiddenClusters.clear();
+    buildClusterList();
+    updateFilterStatus();
+    render();
+  });
+  document.getElementById("hide-all-btn").addEventListener("click", () => {
+    clusters.forEach(c => state.hiddenClusters.add(c.id));
+    buildClusterList();
+    updateFilterStatus();
+    render();
+  });
+
+  buildClusterList();
+  updateFilterStatus();
+
+  // === SEARCH ===
+  const searchInput = document.getElementById("search-input");
+  const searchClear = document.getElementById("search-clear");
+  const searchStatus = document.getElementById("search-status");
+  let searchTimeout;
+
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      state.searchQuery = searchInput.value.trim();
+      searchClear.classList.toggle("visible", !!state.searchQuery);
+
+      if (state.searchQuery) {
+        const count = posts.filter(p => isPostVisible(p)).length;
+        searchStatus.textContent = `${count} post${count !== 1 ? "s" : ""} match "${state.searchQuery}"`;
+      } else {
+        searchStatus.textContent = "";
+      }
+      updateFilterStatus();
+      render();
+    }, 200);
+  });
+
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    state.searchQuery = "";
+    searchClear.classList.remove("visible");
+    searchStatus.textContent = "";
+    updateFilterStatus();
+    render();
+  });
+
+  // === ABOUT MODAL ===
+  const modalOverlay = document.getElementById("modal-overlay");
+  document.getElementById("about-btn").addEventListener("click", () => {
+    modalOverlay.classList.add("visible");
+  });
+  document.getElementById("modal-close").addEventListener("click", () => {
+    modalOverlay.classList.remove("visible");
+  });
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) modalOverlay.classList.remove("visible");
+  });
+
+  // === EDGE TOGGLE (Phase 5) ===
+  const edgeToggle = document.getElementById("edge-toggle");
+  edgeToggle.addEventListener("click", () => {
+    state.edgesVisible = !state.edgesVisible;
+    edgeToggle.classList.toggle("active", state.edgesVisible);
+    render();
+  });
+
+  // === TIME CONTROLS (Phase 4) ===
+  const timeSlider = document.getElementById("time-slider");
+  const timePlayBtn = document.getElementById("time-play-btn");
+  const timeDateEl = document.getElementById("time-date");
+  const timeStatsEl = document.getElementById("time-stats");
+  const timeLabelStart = document.getElementById("time-label-start");
+  const timeLabelEnd = document.getElementById("time-label-end");
+
+  timeLabelStart.textContent = formatMonth(dateMin);
+  timeLabelEnd.textContent = formatMonth(dateMax);
+  timeDateEl.textContent = formatMonth(dateMax);
+
+  // Slider maps [0, 1000] to month indices
+  function sliderToMonth(val) {
+    const idx = Math.round((val / 1000) * (uniqueMonths.length - 1));
+    return uniqueMonths[Math.min(idx, uniqueMonths.length - 1)];
+  }
+
+  function updateTimeDisplay() {
+    if (!state.timeMax) {
+      timeDateEl.textContent = formatMonth(dateMax);
+      timeStatsEl.textContent = `${posts.length.toLocaleString()} posts`;
+    } else {
+      timeDateEl.textContent = formatMonth(state.timeMax);
+      const visible = posts.filter(p => isPostInTimeRange(p)).length;
+      timeStatsEl.textContent = `${visible.toLocaleString()} of ${posts.length.toLocaleString()}`;
+    }
+    updateFilterStatus();
+  }
+
+  timeSlider.addEventListener("input", () => {
+    const val = parseInt(timeSlider.value);
+    if (val >= 999) {
+      state.timeMax = null; // show all
+    } else {
+      const month = sliderToMonth(val);
+      const prevMax = state.timeMax;
+      state.timeMax = month + "-31"; // end of month
+      // Trigger glow for newly visible posts
+      if (prevMax && state.timeMax > prevMax) {
+        const t = performance.now();
+        for (const p of posts) {
+          if (p.date > prevMax && p.date <= state.timeMax) {
+            state.glowPosts.set(p.id, t);
+          }
+        }
+      }
+    }
+    updateTimeDisplay();
+    render();
+  });
+
+  // Play/pause
+  let playInterval = null;
+
+  function startPlayback() {
+    state.timePlaying = true;
+    timePlayBtn.textContent = "⏸";
+    timePlayBtn.classList.add("playing");
+
+    // If at end, restart from beginning
+    if (parseInt(timeSlider.value) >= 999) {
+      timeSlider.value = 0;
+      state.timeMax = sliderToMonth(0) + "-31";
+      updateTimeDisplay();
+      render();
+    }
+
+    const msPerStep = 500 / state.timeSpeed;
+    playInterval = setInterval(() => {
+      let val = parseInt(timeSlider.value) + Math.max(1, Math.round(5 * state.timeSpeed));
+      if (val >= 1000) {
+        val = 1000;
+        stopPlayback();
+      }
+      timeSlider.value = val;
+      timeSlider.dispatchEvent(new Event("input"));
+    }, msPerStep);
+  }
+
+  function stopPlayback() {
+    state.timePlaying = false;
+    timePlayBtn.textContent = "▶";
+    timePlayBtn.classList.remove("playing");
+    if (playInterval) {
+      clearInterval(playInterval);
+      playInterval = null;
+    }
+  }
+
+  timePlayBtn.addEventListener("click", () => {
+    if (state.timePlaying) {
+      stopPlayback();
+    } else {
+      startPlayback();
+    }
+  });
+
+  // Speed buttons
+  document.querySelectorAll(".time-speed button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".time-speed button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.timeSpeed = parseFloat(btn.dataset.speed);
+      if (state.timePlaying) {
+        stopPlayback();
+        startPlayback();
+      }
+    });
+  });
+
+  updateTimeDisplay();
+
+  // === JOURNEY MODE (Phase 6) ===
+  const journeyToggle = document.getElementById("journey-toggle");
+  const modeIndicator = document.getElementById("mode-indicator");
+  const journeyPanel = document.getElementById("journey-panel");
+  const journeyPanelTitle = document.getElementById("journey-panel-title");
+  const journeyPanelSubtitle = document.getElementById("journey-panel-subtitle");
+  const journeySuggestions = document.getElementById("journey-suggestions");
+  const journeyCardsEl = document.getElementById("journey-cards");
+  const journeyFooter = document.getElementById("journey-footer");
+  const journeyPrevBtn = document.getElementById("journey-prev-btn");
+  const journeyNextBtn = document.getElementById("journey-next-btn");
+  const journeyCloseBtn = document.getElementById("journey-close-btn");
+  const timeControls = document.getElementById("time-controls");
+
+  // Post lookup map
+  const postById = new Map(posts.map(p => [p.id, p]));
+
+  // Build curated suggestions
+  function buildSuggestions() {
+    journeySuggestions.innerHTML = "";
+    if (!curated_journeys || curated_journeys.length === 0) {
+      journeySuggestions.style.display = "none";
+      return;
+    }
+    journeySuggestions.style.display = "block";
+    let html = '<h4>Curated Journeys</h4>';
+    curated_journeys.forEach((j, i) => {
+      html += `<div class="journey-suggestion-item" data-journey-idx="${i}">${j.title}</div>`;
+    });
+    journeySuggestions.innerHTML = html;
+    journeySuggestions.querySelectorAll(".journey-suggestion-item").forEach(el => {
+      el.addEventListener("click", () => {
+        const idx = parseInt(el.dataset.journeyIdx);
+        const journey = curated_journeys[idx];
+        activateJourney(journey.post_ids, journey.title);
+      });
+    });
+  }
+
+  // Compute a journey from a starting post
+  function computeJourney(startPost) {
+    const journeyIds = [startPost.id];
+    const journeySet = new Set(journeyIds);
+    const maxLen = 7;
+
+    // Step 1: Follow internal links (cross-cluster preferred)
+    for (const linkId of (startPost.internal_links || [])) {
+      if (journeySet.has(linkId)) continue;
+      const linked = postById.get(linkId);
+      if (!linked) continue;
+      journeySet.add(linkId);
+      journeyIds.push(linkId);
+      if (journeyIds.length >= maxLen) break;
+    }
+
+    // Step 2: Fill with cross-cluster nearest neighbors (by x,y distance)
+    if (journeyIds.length < maxLen) {
+      const candidates = posts
+        .filter(p => !journeySet.has(p.id) && p.cluster_id !== startPost.cluster_id)
+        .map(p => ({
+          id: p.id,
+          dist: Math.hypot(p.x - startPost.x, p.y - startPost.y)
+        }))
+        .sort((a, b) => a.dist - b.dist);
+
+      for (const c of candidates) {
+        if (journeyIds.length >= maxLen) break;
+        journeySet.add(c.id);
+        journeyIds.push(c.id);
+      }
+    }
+
+    // Step 3: Order chronologically
+    const journeyPosts = journeyIds.map(id => postById.get(id)).filter(Boolean);
+    journeyPosts.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    return journeyPosts.map(p => p.id);
+  }
+
+  function activateJourney(postIds, title) {
+    state.activeJourney = postIds;
+    state.journeyIndex = 0;
+
+    // Disable time slider in journey mode
+    timeControls.style.opacity = "0.3";
+    timeControls.style.pointerEvents = "none";
+    if (state.timePlaying) stopPlayback();
+
+    // Update panel
+    journeyPanelTitle.textContent = title || "Your Journey";
+    journeyPanelSubtitle.textContent = `${postIds.length} posts`;
+    journeySuggestions.style.display = "none";
+    journeyFooter.style.display = "flex";
+
+    // Build cards
+    buildJourneyCards();
+
+    // Center on first post
+    centerOnJourneyPost(0);
+    render();
+  }
+
+  function buildJourneyCards() {
+    journeyCardsEl.innerHTML = "";
+    if (!state.activeJourney) return;
+
+    state.activeJourney.forEach((pid, i) => {
+      const p = postById.get(pid);
+      if (!p) return;
+      const card = document.createElement("div");
+      card.className = "journey-card" + (i === state.journeyIndex ? " active-card" : "");
+      card.dataset.idx = i;
+      card.innerHTML = `
+        <div class="journey-num">${i + 1}</div>
+        <div class="journey-card-content">
+          <div class="journey-card-title">${p.title}</div>
+          <div class="journey-card-meta">
+            <span>${p.date || ""}</span>
+            <span class="journey-card-cluster" style="border-left:3px solid ${p.cluster_color}">${p.cluster_label}</span>
+          </div>
+          <div class="journey-card-snippet">${p.snippet || ""}</div>
+        </div>
+      `;
+      card.addEventListener("click", () => {
+        const url = p.alt_url || p.url;
+        window.open(url, "_blank");
+      });
+      journeyCardsEl.appendChild(card);
+    });
+  }
+
+  function centerOnJourneyPost(idx) {
+    if (!state.activeJourney || idx < 0 || idx >= state.activeJourney.length) return;
+    state.journeyIndex = idx;
+    const pid = state.activeJourney[idx];
+    const p = postById.get(pid);
+    if (!p) return;
+
+    // Update active card highlight
+    journeyCardsEl.querySelectorAll(".journey-card").forEach((card, i) => {
+      card.classList.toggle("active-card", i === idx);
+    });
+    // Scroll card into view
+    const activeCard = journeyCardsEl.querySelector(".active-card");
+    if (activeCard) activeCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    // Pan map to center on this post
+    const [sx, sy] = dataToScreen(p.x, p.y);
+    const dx = width / 2 - sx;
+    const dy = height / 2 - sy;
+    const newTransform = state.transform.translate(dx / state.transform.k, dy / state.transform.k);
+    d3.select(canvas).transition().duration(600).call(zoom.transform, newTransform);
+  }
+
+  function exitJourney() {
+    state.activeJourney = null;
+    state.journeyIndex = 0;
+
+    // Re-enable time slider
+    timeControls.style.opacity = "1";
+    timeControls.style.pointerEvents = "auto";
+
+    journeyFooter.style.display = "none";
+    journeyCardsEl.innerHTML = "";
+    buildSuggestions();
+    journeyPanelTitle.textContent = "Start a Journey";
+    journeyPanelSubtitle.textContent = "Click any post on the map to begin";
+    render();
+  }
+
+  function toggleJourneyMode() {
+    if (state.currentMode === "journey") {
+      state.currentMode = "normal";
+      journeyToggle.classList.remove("active");
+      modeIndicator.classList.remove("visible");
+      journeyPanel.classList.remove("open");
+      exitJourney();
+    } else {
+      state.currentMode = "journey";
+      journeyToggle.classList.add("active");
+      modeIndicator.classList.add("visible");
+      journeyPanel.classList.add("open");
+      buildSuggestions();
+    }
+    render();
+  }
+
+  journeyToggle.addEventListener("click", toggleJourneyMode);
+
+  journeyCloseBtn.addEventListener("click", () => {
+    if (state.currentMode === "journey") toggleJourneyMode();
+  });
+
+  journeyNextBtn.addEventListener("click", () => {
+    if (!state.activeJourney) return;
+    if (state.journeyIndex < state.activeJourney.length - 1) {
+      centerOnJourneyPost(state.journeyIndex + 1);
+      render();
+    }
+  });
+
+  journeyPrevBtn.addEventListener("click", () => {
+    if (!state.activeJourney) return;
+    if (state.journeyIndex > 0) {
+      centerOnJourneyPost(state.journeyIndex - 1);
+      render();
+    }
+  });
+
+  // Override click behavior in journey mode
+  const originalClickHandler = canvas.onclick;
+  canvas.addEventListener("click", (e) => {
+    if (state.currentMode !== "journey") return;
+    e.stopImmediatePropagation();
+    const nearest = findNearest(e.clientX, e.clientY);
+    if (nearest && (postOpacity(nearest) > 0.1 || !state.activeJourney)) {
+      // Start journey from this post
+      const journeyIds = computeJourney(nearest);
+      activateJourney(journeyIds, nearest.title);
+    }
+  }, true); // capture phase to intercept before normal click
+
+  // === INITIAL RENDER ===
+  render();
+
+})();
+</script>
+</body>
+</html>
